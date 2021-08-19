@@ -1,0 +1,844 @@
+// Assignment 2 19T2 COMP1511: Castle Defense
+//
+// This program was written by Ian (z5161724)
+// on 30 July 2019
+//
+// Version 1.0.0 (2019-07-22): Assignment released.
+// Version 1.0.1 (2019-07-22): Fix minor style issue with print_tower.
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "realm.h"
+
+////////////////////////////////////////////////////////////////////////
+
+// `struct realm` represents a realm, which represents the state of the
+// entire program. It is mainly used to point to a linked list of 
+// locations, though you may want to add other fields to it.
+//
+// You may need to add fields to struct realm.
+struct realm {
+    Location castle;
+    Location lair;
+};
+
+// `struct location` represents a location, which could be a land,
+// a tower, or a castle. Each of those places has a different type
+// of information that this struct will need to store.
+//
+// You will need to add fields to struct location.
+struct location {
+    char name[MAX_NAME_LENGTH];
+    int type;
+    int power;
+    int uses;
+    int defenses;
+    Effect effect;
+    Enemy enemies;
+    Location next;
+
+};
+
+// `struct enemy` represents an enemy, which will move through the
+// realm (to each location). Towers can deal damage to it, and
+// it can deal damage to the Castle.
+//
+// You will need to add fields to struct enemy.
+struct enemy {
+    char name[MAX_NAME_LENGTH];
+    int cur_hp;
+    int max_hp;
+    Enemy next;
+};
+
+////////////////////////////////////////////////////////////////////////
+
+// Function prototypes for helper functions
+static Location new_location(char *name);
+static void print_tower(char *name, int power, int uses, Effect effect);
+static void print_land(char *name);
+static void print_castle(char *name, int defense);
+static void print_enemy(char *name, int cur_hp, int max_hp);
+
+// Add prototypes for any extra functions you create here.
+static Location new_location(char *name);
+static Enemy new_enemies(char *name, int hp);
+static int enemy_count (Realm realm);
+static void remove_dead(Realm realm);
+static void destroy_enemies(Enemy enemy);
+static void destroy_location(Location location);
+static int search_function(char *search_term, char *input_term);
+static Enemy sort_enemies(Enemy enemy, Enemy new_pointer);
+static Enemy new_list(Enemy enemy, Enemy new_pointer);
+
+////////////////////////////////////////////////////////////////////////
+
+// You need to implement the following 9 functions.
+// In other words, write code to make the function work as described 
+// in realm.h.
+
+// Create a new realm, and return a pointer to it.
+Realm new_realm(void) {
+    struct realm *realm = malloc(sizeof(struct realm));
+    realm->lair = new_location("Lair");
+    realm->castle = new_location("Castle");
+    realm->castle->type = TYPE_CASTLE;
+    realm->castle->defenses = STARTING_CASTLE_HP;
+    realm->castle->next = NULL;
+    if (realm->lair != NULL && realm->castle != NULL) {
+        realm->lair->next = realm->castle;
+    }
+
+    return realm;
+}
+
+////////////////////////////////////////////////////////////////////////
+//                         Stage 1 Functions                          //
+////////////////////////////////////////////////////////////////////////
+
+// Add a new location to the realm.
+void add_location(Realm realm, char *name) {
+    Location new_land = new_location(name);
+    Location realm_runner = realm->lair;
+    
+    // Loop through the realm until we reach the
+    // next pointer that matches realm->castle
+    while (realm_runner->next != realm->castle) {
+        realm_runner = realm_runner->next;
+    }
+    realm_runner->next = new_land;
+    new_land->next = realm->castle;
+}
+
+// Print out the realm.
+void print_realm(Realm realm) {
+    remove_dead(realm);
+    Location realm_runner = realm->lair;
+    // Loop through the realm and print every location before castle
+    while (realm_runner != NULL) {
+        if (realm_runner->type == TYPE_LAND) {
+            // If it is a land
+            print_land(realm_runner->name);
+        } else if (realm_runner->type == TYPE_TOWER) {
+            // If it is a tower
+            print_tower(realm_runner->name, realm_runner->power,
+                realm_runner->uses, realm_runner->effect
+            );
+        } else if (realm_runner->type == TYPE_CASTLE) {
+            // If it is the castle
+            print_castle(realm->castle->name, realm->castle->defenses);
+        }
+        // Create an enemy pointer from the current land
+        Enemy next_enemy = realm_runner->enemies;
+        // Print enemies as well
+        while (next_enemy != NULL) {
+            print_enemy(next_enemy->name, next_enemy->cur_hp, 
+                next_enemy->max_hp
+            );
+            next_enemy = next_enemy->next;
+        }
+        realm_runner = realm_runner->next;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////
+//                         Stage 2 Functions                          //
+////////////////////////////////////////////////////////////////////////
+
+// Add a new tower to the realm.
+int new_tower(Realm realm, char *prev_name, char *name, int power, int uses) {
+    Location realm_runner = realm->lair;
+    
+    // Loop through the realm to find the location that matches prev_name
+    while (realm_runner != realm->castle &&
+        strcmp(prev_name, realm_runner->name) != 0)
+    {
+        realm_runner = realm_runner->next;
+    }
+    
+    // If we reach the castle when looping, location names did not match
+    if (realm_runner == realm->castle) {
+        return ERROR_NO_LOCATION;
+    }
+    
+    // Check that power and uses given are valid
+    if (power < 1 || uses < 1) {
+        return ERROR_INVALID_STAT;
+    }
+    
+    // Create the new location
+    Location new_tower = new_location(name);
+    
+    // Assign valid values
+    new_tower->type = TYPE_TOWER;
+    new_tower->power = power;
+    new_tower->uses = uses;
+    new_tower->effect = EFFECT_NONE;
+    
+    // Place the new tower, with the given stats, directly after the location
+    new_tower->next = realm_runner->next;
+    realm_runner->next = new_tower;
+    
+    return SUCCESS;
+}
+
+// Add an enemy to the realm.
+int new_enemy(Realm realm, char *location_name, char *name, int hp) {
+    Location realm_runner = realm->lair;
+    
+    // Check that hp given is valid
+    if (hp < 1) {
+        return ERROR_INVALID_STAT;
+    }
+    
+    // Loop through the realm to find the location that matches prev_name
+    while (
+        realm_runner != NULL && strcmp(location_name, realm_runner->name) != 0
+    ) {
+        realm_runner = realm_runner->next;
+    }
+    
+    // If we reach NULL when looping, location names did not match
+    if (realm_runner == NULL) {
+        // Location name did not match
+        return ERROR_NO_LOCATION;
+    } else {
+        // Location match
+        // Create new enemy 
+        Enemy new_enemy = new_enemies(name, hp);
+        // Create an enemy pointer
+        Enemy next_enemy = realm_runner->enemies;
+        if (realm_runner->enemies == NULL) {
+            // No enemies in land
+            realm_runner->enemies = new_enemy;
+        } else {
+            // Loop through the enemies until the NULL pointer is found
+            while (next_enemy->next != NULL) {
+                // Place the new enemy, with the given stats
+                // directly after the last enemy at the location found above
+                next_enemy = next_enemy->next;
+            }
+            next_enemy->next = new_enemy;
+        }
+    }
+    return SUCCESS;
+}
+
+
+// Advance enemies towards the castle.
+int advance_enemies(Realm realm) {
+    Location realm_runner = realm->lair;
+    Enemy next_enemy = realm_runner->enemies;
+    // Count how many enemies there are at the castle
+    int enemy_counter = enemy_count(realm);
+    // int enemy_counter = enemy_count(realm);
+    if (realm->castle->enemies != NULL) {
+        // Removing them
+        destroy_enemies(realm->castle->enemies);
+    }
+    
+    // Create an enemy pointer from the current land
+    Enemy curr_enemy = realm_runner->enemies;
+    Location bounce_point = realm->lair;
+    while (realm_runner != NULL) {
+        if (realm_runner == realm->lair) {
+            // Currently pointing at Lair
+            // Copy lair's enemies
+            curr_enemy = realm_runner->enemies;
+            // Point lair's enemies to NULL
+            realm_runner->enemies = NULL;
+        } else {
+            // Implementing effects
+            Enemy frozen_list = NULL;
+            Enemy not_frozen = NULL;
+            Enemy bounce_list = NULL;
+            if (realm_runner->type == TYPE_TOWER &&
+                realm_runner->effect == EFFECT_ICE)
+            {
+                // Go through the enemies list and separate them into two
+                Enemy enemy_runner = realm_runner->enemies;
+                while (enemy_runner != NULL) {
+                    Enemy next_runner = NULL;
+                    if (enemy_runner->cur_hp <= realm_runner->power) {
+                        // Frozen enemies
+                        next_runner = enemy_runner->next;
+                        frozen_list = new_list(enemy_runner, frozen_list);
+                    } else {
+                        // Not frozen enemies
+                        next_runner = enemy_runner->next;
+                        not_frozen = new_list(enemy_runner, not_frozen);
+                    }
+                    enemy_runner = next_runner;
+                }
+                realm_runner->enemies = not_frozen;
+            } else if (realm_runner->type == TYPE_TOWER &&
+                realm_runner->effect == EFFECT_BOUNCE)
+            {
+                // Put all enemies into a single list
+                bounce_list = realm_runner->enemies;
+                realm_runner->enemies = NULL;
+            }
+            // For the other lands, copy the enemy pointer
+            next_enemy = realm_runner->enemies;
+            // Point next land's enemies pointer
+            // to the previous land's enemies
+            realm_runner->enemies = curr_enemy;
+            // Append ice_list the end of this list
+            if (curr_enemy == NULL) {
+                realm_runner->enemies = frozen_list;
+            } else {
+                while (curr_enemy->next != NULL) {
+                    curr_enemy = curr_enemy->next;
+                }
+                curr_enemy->next = frozen_list;
+            }
+            // Append bounce_list the end of this list
+            Enemy bounced_enemies = bounce_point->enemies; 
+            if (bounced_enemies == NULL) {
+                bounce_point->enemies = bounce_list;
+            } else {
+                while (bounced_enemies->next != NULL) {
+                    bounced_enemies = bounced_enemies->next;
+                }
+                bounced_enemies->next = bounce_list;
+            }
+            
+            // Copy enemy pointer for the next time while loop is run
+            curr_enemy = next_enemy;
+            
+        }
+        // Set bounce points at towers before moving to next location
+        if (realm_runner->next != NULL && realm_runner->type == TYPE_TOWER) {
+            bounce_point = realm_runner;
+        }
+        realm_runner = realm_runner->next;
+    }
+    
+    realm_runner = realm->lair;
+    // Create a new empty linked list for enemies
+    Enemy new_pointer = NULL;
+    // Sort all enemies in each location
+    while (realm_runner != NULL) {
+        realm_runner->enemies = sort_enemies(realm_runner->enemies, new_pointer);
+        realm_runner = realm_runner->next;
+    }
+    
+    return enemy_counter;
+}
+
+////////////////////////////////////////////////////////////////////////
+//                         Stage 3 Functions                          //
+////////////////////////////////////////////////////////////////////////
+
+// Apply damage from the enemies at each tower to that tower.
+int apply_damage(Realm realm) {
+    // For enemies at the towers
+    Location realm_runner = realm->lair;
+    int damaged_enemies = 0;
+    
+    // Applying damage from towers and counting how many are hit
+    // Go through each enemy at each tower
+    while (realm_runner != NULL) {
+        if (realm_runner->type == TYPE_TOWER) {
+            Enemy curr_enemy = realm_runner->enemies;
+            while (curr_enemy != NULL) {
+                // Count how many enemies there are in total
+                damaged_enemies++;
+                // If there are enemies, reduce it's HP by the tower's power
+                curr_enemy->cur_hp -= realm_runner->power;
+                curr_enemy = curr_enemy->next;
+            }
+        }
+        realm_runner = realm_runner->next;
+    }
+    
+    // Reducing tower uses and changing it to land
+    realm_runner = realm->lair;
+    // Go through each enemy at each tower
+    while (realm_runner != NULL) {
+        Enemy curr_enemy = realm_runner->enemies;
+        if (realm_runner->type == TYPE_TOWER && curr_enemy != NULL) {
+            // If the tower has an enemy at it
+            // Reduce that tower's number of uses left by 1
+            realm_runner->uses--;
+            if (realm_runner->uses == 0) {
+                // If that tower now has no uses, convert it into a land.
+                realm_runner->type = TYPE_LAND;
+            }
+        }
+        realm_runner = realm_runner->next;
+    }
+    
+    // Remove enemies with 0 or less health
+    remove_dead(realm);
+    
+    // For enemies at the castle
+    Enemy curr_enemy = realm->castle->enemies;
+    // Go through each enemy at castle
+    while (curr_enemy != NULL) {
+        // Reduce castle's defenses by enemy's current hp
+        realm->castle->defenses -= curr_enemy->cur_hp;
+        curr_enemy = curr_enemy->next;
+    }
+    
+    return damaged_enemies;
+}
+
+// Destroy the realm, and free any associated memory.
+void destroy_realm(Realm realm) {
+    
+    // Free all locations and enemies
+    destroy_location(realm->lair);
+    
+    // Free realm
+    free(realm);
+    
+    return;
+}
+
+////////////////////////////////////////////////////////////////////////
+//                         Stage 4 Functions                          //
+////////////////////////////////////////////////////////////////////////
+
+// Apply the specified buff to the relevant towers or enemies.
+int apply_buff(Realm realm, char *search_term, Buff buff, int amount){
+    int buffed = 0;
+    
+    // Buff towers
+    Location realm_runner = realm->lair;
+    // Loop through the realm to find towers that match search_term
+    while (realm_runner != NULL) {
+        if (search_function(search_term, realm_runner->name) == TRUE) {
+            if (realm_runner->type == TYPE_TOWER && buff == BUFF_TOWER_USES) {
+                realm_runner->uses += amount;
+                buffed++;
+                if (realm_runner->uses < 1) {
+                    realm_runner->type = TYPE_LAND;
+                }
+            }
+            if (realm_runner->type == TYPE_TOWER && buff == BUFF_TOWER_POWER) {
+                realm_runner->power += amount;
+                buffed++;
+                if (realm_runner->power < 1) {
+                    realm_runner->type = TYPE_LAND;
+                }
+            }
+        }
+        realm_runner = realm_runner->next;
+    }
+    
+    // Buff enemies
+    realm_runner = realm->lair;
+    if (buff == BUFF_ENEMY_HP) {
+        // Loop through to find enemies that match search_term
+        while (realm_runner != NULL) {
+            Enemy curr_enemy = realm_runner->enemies;
+            while (curr_enemy != NULL) {
+                if (search_function(search_term, curr_enemy->name) == TRUE) {
+                    curr_enemy->cur_hp += amount;
+                    buffed++;
+                }
+                curr_enemy = curr_enemy->next;
+            }
+            realm_runner = realm_runner->next;
+        }
+        remove_dead(realm);
+    }
+    
+    return buffed;
+}
+
+////////////////////////////////////////////////////////////////////////
+//                         Stage 5 Functions                          //
+////////////////////////////////////////////////////////////////////////
+
+// Apply the specified effect to each tower whose name matches the
+// specified search term.
+int apply_effect(Realm realm, char *search_term, Effect effect) {
+    int affected = 0;
+    // Add effects to towers
+    Location realm_runner = realm->lair;
+    // Loop through the realm to find the location that matches search_term
+    while (realm_runner != NULL) {
+        if (search_function(search_term, realm_runner->name) == TRUE) {
+            if (realm_runner->type == TYPE_TOWER && effect == EFFECT_ICE) {
+                realm_runner->effect = EFFECT_ICE;
+                affected++;
+            }
+            if (realm_runner->type == TYPE_TOWER && effect == EFFECT_BOUNCE) {
+                realm_runner->effect = EFFECT_BOUNCE;
+                affected++;
+            }
+        }
+        realm_runner = realm_runner->next;
+    }
+    
+    return affected;
+}
+
+////////////////////////////////////////////////////////////////////////
+
+// Add definitions for your own functions below.
+// Function to create a new location
+static Location new_location(char *name) {
+    Location new_land = malloc(sizeof(struct location));
+    
+    // If our new location does not have a size
+    if (new_land == NULL) {
+        printf(
+            "Malloc failed, unable to create location. Program will exit.\n"
+        );
+        exit(1);
+    }
+    
+    // Copy the name given to the name field inside the struct
+    strcpy(new_land->name, name);
+    new_land->enemies = NULL;
+    new_land->type = TYPE_LAND;
+    /*print test
+    printf("The name of the string i just copied is: ");
+    fputs(new_land->name,stdout);
+    printf("\n");
+    */
+    return new_land;
+}
+
+// Function to create a new enemy
+static Enemy new_enemies(char *name, int hp) {
+    Enemy new_enemy = malloc(sizeof(struct enemy));
+    
+    // If our new enemy does not have a size
+    if (new_enemy == NULL) {
+        printf(
+            "Malloc failed, unable to create location. Program will exit.\n"
+        );
+        exit(1);
+    }
+    
+    // Copy the name given to the name field inside the struct.
+    // Assign hp and make its next pointer point to NULL
+    strcpy(new_enemy->name, name);
+    new_enemy->max_hp = hp;
+    new_enemy->cur_hp = hp;
+    new_enemy->next = NULL;
+    
+    return new_enemy;
+}
+
+// Function to count how many enemies there are at the castle
+static int enemy_count (Realm realm) {
+    Enemy enemy_runner = realm->castle->enemies;
+    int count = 0;
+    while (enemy_runner != NULL) {
+        enemy_runner = enemy_runner->next;
+        count++;
+    }
+    return count;
+}
+
+// Function to remove enemies with health 0 and below
+static void remove_dead(Realm realm) {
+    Location realm_runner = realm->lair;
+    // Go through each enemy at each location
+    while (realm_runner != NULL) {
+        Enemy curr_enemy = realm_runner->enemies;
+        if (curr_enemy != NULL) {
+            // There are enemies at the location
+            if (curr_enemy->cur_hp <= 0 && curr_enemy->next == NULL) {
+                // If there is only one enemy at the location and it died
+                realm_runner->enemies = NULL;
+                free(curr_enemy);
+            } else {
+                // next_enemy pointer is valid
+                Enemy next_enemy = curr_enemy->next;
+                while (next_enemy != NULL) {
+                    if (curr_enemy->cur_hp <= 0) {
+                        // The first enemy in the list died
+                        realm_runner->enemies = next_enemy;
+                        free(curr_enemy);
+                        curr_enemy = realm_runner->enemies;
+                        next_enemy = curr_enemy->next;
+                    } else if (next_enemy->cur_hp <= 0) {
+                        // If the rest of the enemies in the list have died
+                        curr_enemy->next = next_enemy->next;
+                        free(next_enemy);
+                        curr_enemy = realm_runner->enemies;
+                        next_enemy = curr_enemy->next;
+                    } else {
+                        curr_enemy = curr_enemy->next;
+                        next_enemy = curr_enemy->next;
+                    }
+                }
+            }
+        }
+        realm_runner = realm_runner->next;
+    }
+}
+
+// Function to recursively free all enemy structs
+static void destroy_enemies(Enemy enemy) {
+    if (enemy == NULL) {
+        return;
+    }
+    destroy_enemies(enemy->next);
+    free(enemy);
+}
+
+// Function to recursively free all location structs
+static void destroy_location(Location location) {
+    if (location == NULL) {
+        return;
+    }
+    destroy_location(location->next);
+    destroy_enemies(location->enemies);
+    free(location);
+}
+
+// Function to compare two strings
+// Returns TRUE if they match, FALSE if they don't
+static int search_function(char *search_term, char *input_term) {
+    int matches = 1;
+    int i = 0;
+    int search_length = strlen(search_term);
+    int input_length = strlen(input_term);
+    char first_half[MAX_NAME_LENGTH];
+    char second_half[MAX_NAME_LENGTH];
+    int found_asterisk = 0;
+    
+    // Looking for '*'
+    while (i < search_length) {
+        if (search_term[i] == '*') {
+            found_asterisk = 1;
+            i = search_length;
+        }
+        i++;
+    }
+    
+    // Dealing with perfect matches and '?' only
+    i = 0;
+    if (strcmp(search_term, input_term) == 0) {
+        matches = 0;
+    } else if (search_length == input_length) {
+        // Resolving only '?' in search term
+        while (i < search_length) {
+            if (search_term[i] == '?') {
+                // Ignoring '?' since they have the same length
+                
+            } else if (search_term[i] == input_term[i]) {
+                // All characters except for '?' match
+                matches = 0;
+            } else {
+                // At least one character does not match
+                matches = 1;
+                i = search_length;
+            }
+            i++;
+        }
+    }
+    
+    // Dealing with '*'
+    if (found_asterisk == 1) {
+        // If '*' is at the beginning or the end
+        if (search_term[0] == '*') {
+            // '*' is at the beginning
+            i = 1;
+            // Resolving '?' in search terms
+            while (search_length - i > 0) {
+                if (search_term[search_length - i] == '?') {
+                    // Ignoring '?' since they have the same length
+                    
+                } else if (search_term[search_length - i] ==
+                    input_term[input_length - i])
+                {
+                    // All characters except for '?' match
+                    matches = 0;
+                } else {
+                    // At least one character does not match
+                    matches = 1;
+                    i = search_length;
+                }
+                i++;
+            }
+        } else if (search_term[search_length - 1] == '*') {
+            // '*' is at the end
+            i = 0;
+            // Resolving '?' in search terms
+            while (i < search_length - 1) {
+                if (search_term[i] == '?') {
+                    // Ignoring '?' since they have the same length
+                    
+                } else if (search_term[i] == input_term[i]) {
+                    // All characters except for '?' match
+                    matches = 0;
+                } else {
+                    // At least one character does not match
+                    matches = 1;
+                    i = search_length;
+                }
+                i++;
+            }
+        } else {
+            // '*' is in the middle, split word into two without '*'
+            // First half
+            matches = 0;
+            i = 0;
+            while (search_term[i] != '*') {
+                first_half[i] = search_term[i];
+                i++;
+            }
+            int first_length = i;
+            // Second half
+            i++;
+            int j = 0;
+            while (search_term[i] != '\0') {
+                second_half[j] = search_term[i];
+                i++;
+                j++;
+            }
+            int second_length = j;
+            // Compare the first_half with input_term
+            // '*' is at the end
+            i = 0;
+            // Resolving '?' in search terms
+            while (i < first_length) {
+                if (first_half[i] == '?') {
+                    // Ignoring '?' since they have the same length
+                    
+                } else if (first_half[i] == input_term[i]) {
+                    // All characters except for '?' match
+                    matches = 0;
+                } else {
+                    // At least one character does not match
+                    matches = 1;
+                    i = first_length;
+                }
+                i++;
+            }
+            if (matches == 0) {
+                // Compare the second_half with input_term
+                // '*' is at the beginning
+                i = 1;
+                // Resolving '?' in search terms
+                while (second_length - i > 0) {
+                    if (second_half[second_length - i] == '?') {
+                        // Ignoring '?' since they have the same length
+                        
+                    } else if (second_half[second_length - i] ==
+                        input_term[input_length - i])
+                    {
+                        // All characters except for '?' match
+                        matches = 0;
+                    } else {
+                        // At least one character does not match
+                        matches = 1;
+                        i = second_length;
+                    }
+                    i++;
+                }
+            }
+        }
+    }
+    
+    // Return check
+    if (matches == 0) {
+        return TRUE; 
+    } else {
+        return FALSE;
+    }
+}
+
+// Function to sort all enemies in the realm alphabetically
+static Enemy sort_enemies(Enemy enemy, Enemy new_pointer) {
+    // Recursively go through all the enemies in one location
+    if (enemy == NULL) {
+        return new_pointer;
+    }
+    new_pointer = sort_enemies(enemy->next, new_pointer);
+    // Insert each enemy into the new linked list alphbetically
+    if (new_pointer == NULL) {
+        // Enemy becomes first element in the list
+        new_pointer = enemy;
+        enemy->next = NULL;
+    } else {
+        Enemy curr_enemy = new_pointer;
+        Enemy next_enemy = curr_enemy->next;
+        if (strcmp(new_pointer->name, enemy->name) > 0) {
+            // If the enemy goes at the start of the list
+            enemy->next = new_pointer;
+            new_pointer = enemy;
+        } else {
+            // Loop through and find where to insert alphabetically
+            while (next_enemy != NULL && strcmp(
+                next_enemy->name, enemy->name
+            ) < 0) {
+                curr_enemy = curr_enemy->next;
+                next_enemy = next_enemy->next;
+            }
+            if (next_enemy == NULL) {
+                // Enemy goes at the end of the list
+                curr_enemy->next = enemy;
+                enemy->next = NULL;
+            } else {
+                // Insert enemy into the newly created linked list
+                curr_enemy->next = enemy;
+                enemy->next = next_enemy;
+                
+            }
+        }
+    }
+    return new_pointer;
+}
+
+// Function to put enemies into a new list
+static Enemy new_list(Enemy enemy, Enemy new_pointer) {
+    if (new_pointer == NULL) {
+        // Enemy becomes first element in the list
+        new_pointer = enemy;
+        enemy->next = NULL;
+    } else {
+        Enemy curr_enemy = new_pointer;
+        // Loop through and find the end of the list
+        while (curr_enemy->next != NULL) {
+            curr_enemy = curr_enemy->next;
+        }
+        // Enemy goes at the end of the list
+        curr_enemy->next = enemy;
+        enemy->next = NULL;
+    }
+    return new_pointer;
+}
+
+////////////////////////////////////////////////////////////////////////
+//                    Provided print functions                        //
+//         NOTE: YOU SHOULD NOT MODIFY THE FOLLOWING FUNCTIONS        //
+////////////////////////////////////////////////////////////////////////
+
+static void print_tower(char *name, int power, int uses, int effect) {
+    printf("%32s [pow: %3d | uses: %3d]", name, power, uses);
+    if (effect == EFFECT_NONE) {
+        printf(" {%c}", EFFECT_NONE_CHAR);
+    } else if (effect == EFFECT_ICE) {
+        printf(" {%c}", EFFECT_ICE_CHAR);
+    } else if (effect == EFFECT_BOUNCE) {
+        printf(" {%c}", EFFECT_BOUNCE_CHAR);
+    }
+    printf("\n");
+}
+
+static void print_land(char *name) {
+    printf("%32s [____________________]\n", name);
+}
+
+static void print_castle(char *name, int defense) {
+    printf("%32s [Castle Defenses: %3d]\n", name, defense);
+}
+
+static void print_enemy(char *name, int cur_hp, int max_hp) {
+    printf("%40s [hp: %d/%d]\n", name, cur_hp, max_hp);
+}
+
+////////////////////////////////////////////////////////////////////////
+//              End of provided print functions                        //
+////////////////////////////////////////////////////////////////////////

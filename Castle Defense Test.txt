@@ -1,0 +1,442 @@
+// Assignment 2 19T2 COMP1511: Castle Defense
+// test_realm.c
+//
+// This file allows you to automatically test the functions you
+// implement in realm.c.
+//
+// This program was written by Ian (z5161724)
+// on 30 July 2019
+//
+// Version 1.0.0: Assignment released.
+
+#include <stdio.h>
+#include <assert.h>
+
+#include "realm.h"
+
+static void test_new_realm();
+void test_print_realm();
+void test_add_location();
+void test_new_tower();
+void test_new_enemy();
+void test_advance_enemies();
+void test_apply_damage();
+void test_apply_buff();
+void test_apply_effect();
+
+int main(void) {
+    printf("\n================== Castle Defense Tests ==================\n");
+    test_new_realm();
+    test_print_realm();
+    test_add_location();
+    test_new_tower();
+    test_new_enemy();
+    test_advance_enemies();
+    test_apply_damage();
+    test_apply_buff();
+    test_apply_effect();
+}
+
+////////////////////////////////////////////////////////////////////////
+//                  Castle Defense Test Functions                     //
+////////////////////////////////////////////////////////////////////////
+
+
+// This function checks that a realm is actually being created.
+void test_new_realm() {
+    printf(">> Testing new_realm\n");
+
+    printf("... Creating new realm.\n");
+    Realm realm = new_realm();
+
+    printf("... Checking it is not null.\n");
+    assert(realm != NULL);
+
+    printf("... Destroying realm.\n");
+    destroy_realm(realm);
+}
+
+// This function will print out an empty realm - it should not crash.
+void test_print_realm() {
+    printf(">> Testing print_realm\n");
+    Realm realm = new_realm();
+
+    printf("... This should show an empty realm - it should not crash.\n");
+
+    print_realm(realm);
+
+    printf("... Destroying realm.\n");
+    destroy_realm(realm);
+}
+
+// This function will add new locations and try to print them.
+void test_add_location() {
+    printf(">> Testing add_location.\n");
+    Realm realm = new_realm();
+
+    // Adding Locations
+    printf("... Adding locations.\n");
+    add_location(realm, "First_Location");
+    add_location(realm, "Second_Location");
+    add_location(realm, "Third_Location");
+
+    printf("... This should show a realm with three extra locations.\n");
+
+    print_realm(realm);
+
+    printf("... Destroying realm.\n");
+    destroy_realm(realm);
+}
+
+// This function will add new towers and try to print them.
+void test_new_tower() {
+    printf(">> Testing new_tower.\n");
+    Realm realm = new_realm();
+    
+    
+    printf("... Adding locations.\n");
+    add_location(realm, "First_Location");
+    add_location(realm, "Second_Location");
+    add_location(realm, "Third_Location");
+    
+    
+    // Testing if it works
+    printf("... Adding towers.\n");
+    new_tower(realm, "First_Location", "First_Tower", 1, 1);
+    new_tower(realm, "Second_Location", "Second_Tower", 1, 1);
+    new_tower(realm, "Third_Location", "Third_Tower", 1, 1);
+    printf("... This should show a realm with three extra towers.\n");
+    
+    // Testing invalid names
+    printf("... Adding towers.\n");
+    new_tower(realm, "FirstLocation", "First_Tower", 1, 1);
+    new_tower(realm, "SecondLocation", "Second_Tower", 1, 1);
+    new_tower(realm, "ThirdLocation", "Third_Tower", 1, 1);
+    
+    // Testing invalid stats
+    new_tower(realm, "First_Location", "First_Tower", 1, 0);
+    new_tower(realm, "Second_Location", "Second_Tower", 0, 1);
+    new_tower(realm, "Third_Location", "Third_Tower", 0, 0);
+    
+    print_realm(realm);
+
+    printf("... Destroying realm.\n");
+    destroy_realm(realm);
+}
+
+// This function will add new enemies and try to print them.
+void test_new_enemy() {
+    printf(">> Testing new_enemy.\n");
+    Realm realm = new_realm();
+    
+    // Adding Locations
+    printf("... Adding locations.\n");
+    add_location(realm, "First_Location");
+    add_location(realm, "Second_Location");
+    add_location(realm, "Third_Location");
+    
+    // Adding towers
+    printf("... Adding towers.\n");
+    new_tower(realm, "First_Location", "First_Tower", 1, 10);
+    new_tower(realm, "Second_Location", "Second_Tower", 10, 1);
+    new_tower(realm, "Third_Location", "Third_Tower", 10, 10);
+    
+    // Testing if it works
+    printf("... Adding enemies.\n");
+    new_enemy(realm, "Lair", "Boss1", 100);
+    new_enemy(realm, "Lair", "Boss2", 100);
+    new_enemy(realm, "Lair", "Boss3", 100);
+    new_enemy(realm, "First_Location", "Enemy_A1", 10);
+    new_enemy(realm, "First_Location", "Enemy_A2", 10);
+    new_enemy(realm, "First_Location", "Enemy_A3", 10);
+    new_enemy(realm, "Second_Location", "Enemy_B1", 10);
+    new_enemy(realm, "Second_Location", "Enemy_B2", 10);
+    new_enemy(realm, "Second_Location", "Enemy_B3", 10);
+    new_enemy(realm, "Third_Location", "Enemy_C1", 10);
+    new_enemy(realm, "Third_Location", "Enemy_C2", 10);
+    new_enemy(realm, "Third_Location", "Enemy_C3", 10);
+    
+    // Testing valid and invalid stats
+    printf("... Adding towers.\n");
+    new_enemy(realm, "First_Location", "Enemy_A", 0);
+    new_enemy(realm, "First_Location", "Enemy_B", 100000);
+    new_enemy(realm, "First_Location", "Enemy_C", -1);
+    
+    printf("... This should give three extra enemies in each land.\n");
+    print_realm(realm);
+
+    printf("... Destroying realm.\n");
+    destroy_realm(realm);
+}
+
+// This function will move enemies along and try to print them.
+void test_advance_enemies() {
+    printf(">> Testing advance_enemies.\n");
+    Realm realm = new_realm();
+    
+    printf("... Adding locations.\n");
+    add_location(realm, "First_Location");
+    add_location(realm, "Second_Location");
+    add_location(realm, "Third_Location");
+    
+    // Adding towers
+    printf("... Adding towers.\n");
+    new_tower(realm, "First_Location", "First_Tower", 1, 1);
+    new_tower(realm, "Second_Location", "Second_Tower", 1, 1);
+    new_tower(realm, "Third_Location", "Third_Tower", 1, 1);
+    
+    // Adding enemies
+    printf("... Adding enemies.\n");
+    new_enemy(realm, "Lair", "Boss1", 100);
+    new_enemy(realm, "Lair", "Boss2", 100);
+    new_enemy(realm, "Lair", "Boss3", 100);
+    new_enemy(realm, "First_Location", "Enemy_A1", 10);
+    new_enemy(realm, "First_Location", "Enemy_A2", 10);
+    new_enemy(realm, "First_Location", "Enemy_A3", 10);
+    new_enemy(realm, "Second_Location", "Enemy_B1", 10);
+    new_enemy(realm, "Second_Location", "Enemy_B2", 10);
+    new_enemy(realm, "Second_Location", "Enemy_B3", 10);
+    new_enemy(realm, "Third_Location", "Enemy_C1", 10);
+    new_enemy(realm, "Third_Location", "Enemy_C2", 10);
+    new_enemy(realm, "Third_Location", "Enemy_C3", 10);
+    
+    // Moving them along and printing them
+    printf("... Moving enemies.\n");
+    printf("... This should move them along one location at a time.\n");
+    printf("... The following number should be 0\n");
+    printf("... The enemies advance! %d made it past the castle!\n",
+        advance_enemies(realm)
+    );
+    print_realm(realm);
+    
+    // Moving them along again and printing them
+    printf("... Moving enemies again.\n");
+    printf("... This should move them along one location at a time.\n");
+    printf("... The following number should be 0\n");
+    printf("... The enemies advance! %d made it past the castle!\n",
+        advance_enemies(realm)
+    );
+    print_realm(realm);
+    
+    // Moving them along again and printing them
+    printf("... Moving enemies again.\n");
+    printf("... This should move them along one location at a time.\n");
+    printf("... The following number should be 3\n");
+    printf("... The enemies advance! %d made it past the castle!\n",
+        advance_enemies(realm)
+    );
+    print_realm(realm);
+    
+    // Moving them along again and printing them
+    printf("... Moving enemies again.\n");
+    printf("... This should move them along one location at a time.\n");
+    printf("... The following number should be 0\n");
+    printf("... The enemies advance! %d made it past the castle!\n",
+        advance_enemies(realm)
+    );
+    print_realm(realm);
+    
+    printf("... Destroying realm.\n");
+    destroy_realm(realm);
+}
+
+// This function tests for damage applied
+void test_apply_damage() {
+    printf(">> Testing apply_damage.\n");
+    Realm realm = new_realm();
+    
+    printf("... Adding locations.\n");
+    add_location(realm, "First_Location");
+    add_location(realm, "Second_Location");
+    add_location(realm, "Third_Location");
+    
+    // Adding towers
+    printf("... Adding towers.\n");
+    new_tower(realm, "First_Location", "First_Tower", 10, 1);
+    new_tower(realm, "Second_Location", "Second_Tower", 10, 2);
+    new_tower(realm, "Third_Location", "Third_Tower", 10, 1);
+    
+    // Adding enemies
+    printf("... Adding enemies.\n");
+    new_enemy(realm, "Lair", "Boss1", 50);
+    new_enemy(realm, "First_Tower", "Enemy_A1", 15);
+    new_enemy(realm, "First_Tower", "Enemy_A2", 10);
+    new_enemy(realm, "First_Tower", "Enemy_A3", 10);
+    new_enemy(realm, "Second_Tower", "Enemy_B1", 10);
+    new_enemy(realm, "Second_Tower", "Enemy_B2", 15);
+    new_enemy(realm, "Second_Tower", "Enemy_B3", 10);
+    new_enemy(realm, "Third_Tower", "Enemy_C1", 10);
+    new_enemy(realm, "Third_Tower", "Enemy_C2", 10);
+    new_enemy(realm, "Third_Tower", "Enemy_C3", 15);
+    new_enemy(realm, "Castle", "Castle_Destroyer1", 15);
+    new_enemy(realm, "Castle", "Castle_Destroyer2", 35);
+    print_realm(realm);
+    
+    printf("... Applying damage\n");
+    printf("... The following number should be 9\n");
+    printf("... Towers fire! %d enemies were hit!\n", apply_damage(realm));
+    
+    printf("... First_Tower and Third_Tower have become lands\n");
+    printf("... Enemies A1, B2, C3 should still be present\n");
+    printf("... Castle health should be 50\n");
+    print_realm(realm);
+    
+    printf("... Destroying realm.\n");
+    destroy_realm(realm);
+}
+
+// This function tests for buffs
+void test_apply_buff() {
+    printf(">> Testing apply_buff.\n");
+    Realm realm = new_realm();
+    
+    printf("... Adding locations.\n");
+    add_location(realm, "First_Location");
+    add_location(realm, "Second_Location");
+    add_location(realm, "Third_Location");
+    
+    // Adding towers
+    printf("... Adding towers.\n");
+    new_tower(realm, "First_Location", "First_Tower", 10, 2);
+    new_tower(realm, "Second_Location", "Second_Tower", 10, 1);
+    new_tower(realm, "Third_Location", "Third_Tower", 10, 2);
+    
+    // Adding enemies
+    printf("... Adding enemies.\n");
+    new_enemy(realm, "Lair", "Boss1", 10);
+    new_enemy(realm, "Lair", "Boss2", 10);
+    new_enemy(realm, "Lair", "Boss3", 10);
+    new_enemy(realm, "First_Tower", "Enemy_A1", 10);
+    new_enemy(realm, "First_Tower", "Enemy_A2", 11);
+    new_enemy(realm, "First_Tower", "Enemy_A3", 10);
+    new_enemy(realm, "Second_Tower", "Enemy_B1", 11);
+    new_enemy(realm, "Second_Tower", "Enemy_B2", 10);
+    new_enemy(realm, "Second_Tower", "Enemy_B3", 10);
+    new_enemy(realm, "Third_Tower", "Enemy_C1", 10);
+    new_enemy(realm, "Third_Tower", "Enemy_C2", 10);
+    new_enemy(realm, "Third_Tower", "Enemy_C3", 11);
+    new_enemy(realm, "Castle", "Castle_Destroyer1", 10);
+    new_enemy(realm, "Castle", "Castle_Destroyer2", 10);
+    new_enemy(realm, "Castle", "Castle_Destroyer3", 10);
+    print_realm(realm);
+    
+    printf("... Applying buffs\n");
+    printf("... The following number should be 1\n");
+    printf("... %d tower(s) were buffed!\n", apply_buff(
+        realm, "F*", BUFF_TOWER_USES, -2)
+    );
+    printf("... The following number should be 2\n");
+    printf("... %d tower(s) were buffed!\n", apply_buff(
+        realm, "???*_?????", BUFF_TOWER_POWER, 2)
+    );
+    printf("... The following number should be 9\n");
+    printf("... %d enemies were buffed!\n", apply_buff(
+        realm, "E?e?y*", BUFF_ENEMY_HP, 10)
+    );
+    
+    printf("... The following number should be 5\n");
+    printf("... %d enemies were buffed!\n", apply_buff(
+        realm, "*1", BUFF_ENEMY_HP, -20)
+    );
+    
+    printf("... First_Tower uses should be a land\n");
+    printf("... All current tower's power should be increased by 2\n");
+    printf("... All Enemy_'s hp should be increased by 10\n");
+    printf(
+        "... All enemies 1's hp should be decreased by 20 and removed if below 1\n"
+    );  
+    print_realm(realm);
+    
+    printf("... Destroying realm.\n");
+    destroy_realm(realm);
+}
+
+// This function will apply effects to towers
+void test_apply_effect() {
+    printf(">> Testing apply_effect.\n");
+    Realm realm = new_realm();
+    
+    printf("... Adding locations.\n");
+    add_location(realm, "First_Location");
+    add_location(realm, "Second_Location");
+    add_location(realm, "Third_Location");
+    
+    // Adding towers
+    printf("... Adding towers.\n");
+    new_tower(realm, "First_Location", "First_Tower", 10, 1);
+    new_tower(realm, "Second_Location", "Second_Tower", 10, 1);
+    new_tower(realm, "Third_Location", "Third_Tower", 10, 1);
+    
+    // Adding enemies
+    printf("... Adding enemies.\n");
+    new_enemy(realm, "Lair", "Boss1", 10);
+    new_enemy(realm, "Lair", "Boss2", 10);
+    new_enemy(realm, "Lair", "Boss3", 10);
+    new_enemy(realm, "First_Location", "Enemy_A3", 1);
+    new_enemy(realm, "First_Location", "Enemy_A5", 1);
+    new_enemy(realm, "First_Location", "Enemy_A6", 1);
+    new_enemy(realm, "First_Tower", "Enemy_A1", 11);
+    new_enemy(realm, "First_Tower", "Enemy_A2", 11);
+    new_enemy(realm, "First_Tower", "Enemy_A4", 10);
+    new_enemy(realm, "Second_Tower", "Enemy_B1", 10);
+    new_enemy(realm, "Second_Tower", "Enemy_B2", 11);
+    new_enemy(realm, "Second_Tower", "Enemy_B3", 10);
+    new_enemy(realm, "Third_Location", "Enemy_C1", 1);
+    new_enemy(realm, "Third_Location", "Enemy_C2", 1);
+    new_enemy(realm, "Third_Location", "Enemy_C4", 1);
+    new_enemy(realm, "Third_Tower", "Enemy_C3", 11);
+    new_enemy(realm, "Third_Tower", "Enemy_C5", 10);
+    new_enemy(realm, "Third_Tower", "Enemy_C6", 11);
+    
+    // Applying effects
+    printf("... Applying effects\n");
+    printf("... The following number should be 1\n");
+    printf("... %d tower(s) were affected!\n", apply_effect(
+        realm, "F*", EFFECT_ICE)
+    );
+    printf("... The following number should be 1\n");
+    printf("... %d tower(s) were affected!\n", apply_effect(
+        realm, "?h*???", EFFECT_ICE)
+    );
+    printf("... The following number should be 1\n");
+    printf("... %d tower(s) were affected!\n", apply_effect(
+        realm, "Second_Tower", EFFECT_BOUNCE)
+    );
+    printf("... First and Third_Tower should have an ice effect\n");
+    printf("... Second_Tower should have an bounce effect\n");
+    print_realm(realm);
+    
+    // Moving them along and printing them
+    printf("... Moving enemies.\n");
+    printf("... This should move normal enemies along one location at a time.\n");
+    printf("... The following number should be 0\n");
+    printf("... The enemies advance! %d made it past the castle!\n",
+        advance_enemies(realm)
+    );
+    printf("... Enemies A4 and C5 should not have moved\n");
+    printf("... Second_Tower's enemies should have moved to First_Tower\n");
+    printf("... All enemies should be in alphabetical order\n");
+    print_realm(realm);
+    
+    // Applying damage with towers with effects
+    printf("... Applying damage\n");
+    printf("... The following number should be 11\n");
+    printf("... Towers fire! %d enemies were hit!\n", apply_damage(realm));
+    printf("... First_Tower should be converted into a land\n");
+    printf("... Castle's health should be at 78\n");
+    print_realm(realm);
+    
+    // Moving them along again and printing them
+    printf("... Moving enemies again.\n");
+    printf("... This should move normal enemies along one location at a time.\n");
+    printf("... The following number should be 2\n");
+    printf("... The enemies advance! %d made it past the castle!\n",
+        advance_enemies(realm)
+    );
+    printf("... All enemies should have moved since First_Tower is a land\n");
+    printf("... All enemies should be in alphabetical order\n");
+    print_realm(realm);
+    
+    printf("... Destroying realm.\n");
+    destroy_realm(realm);
+}
